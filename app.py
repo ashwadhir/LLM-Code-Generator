@@ -9,7 +9,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 # --- Get secrets from environment variables ---
 MY_SECRET = os.environ.get('MY_APP_SECRET')
 # Set the Gemini API key from the secret you just added
-genai.api_key = os.environ.get('GEMINI_API_KEY')
+genai.configure(
+    api_key=os.environ.get("GEMINI_API_KEY"),
+    transport='rest' # <-- Add this line
+)
 
 app = Flask(__name__)
 
