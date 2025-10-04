@@ -1,4 +1,8 @@
 from flask import Flask, request, jsonify
+import logging
+
+# Configure logging at the top of your file
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 # Initialize the Flask application
 app = Flask(__name__)
@@ -17,9 +21,9 @@ def handle_request():
 
     # For now, just print the brief to the console to confirm we received it
     if request_data and 'brief' in request_data:
-        print(f"Received brief: {request_data['brief']}")
+        logging.info(f"Received brief: {request_data['brief']}")
     else:
-        print("Received a request with no brief.")
+        logging.info("Received a request with no brief.")
 
     # --- TODO: ADD YOUR LOGIC HERE ---
     # 1. Verify the signature.
