@@ -1,9 +1,12 @@
 ---
-title: LLM Code Deployer
+title: Llm Code Deployer
+emoji: 📊
+colorFrom: yellow
+colorTo: pink
 sdk: docker
-app_port: 7860
+pinned: false
+license: mit
+short_description: tds project 1
 ---
 
-# My LLM Code Deployment Project
-
-This Space hosts the API endpoint for my project.
+Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
