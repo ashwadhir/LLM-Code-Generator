@@ -1,36 +1,32 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, abort
 import logging
+import os # Required to read secrets
 
-# Configure logging at the top of your file
+# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
-# Initialize the Flask application
-app = Flask(__name__)
+# Get your secret from the Hugging Face Space settings
+MY_SECRET = os.environ.get('MY_APP_SECRET')
 
-# Define your unique usercode
-# TODO: Replace "YOUR_UNIQUE_CODE_HERE" with the one you'll submit
-USER_CODE = "YOUR_UNIQUE_CODE_HERE"
+app = Flask(__name__)
 
 @app.route('/', methods=['POST'])
 def handle_request():
-    """
-    This is the main endpoint that receives the project request.
-    """
-    # Get the JSON data from the request
+    """Handles the incoming project request."""
     request_data = request.get_json()
+    if not request_data:
+        abort(400, "Bad Request: No JSON data received.")
 
-    # For now, just print the brief to the console to confirm we received it
-    if request_data and 'brief' in request_data:
+    # --- Verify the Secret ---
+    if not MY_SECRET or request_data.get('secret') != MY_SECRET:
+        logging.error("Secret verification failed.")
+        abort(403, "Forbidden: Invalid secret")
+
+    logging.info("Secret verified successfully.")
+
+    if 'brief' in request_data:
         logging.info(f"Received brief: {request_data['brief']}")
-    else:
-        logging.info("Received a request with no brief.")
 
-    # --- TODO: ADD YOUR LOGIC HERE ---
-    # 1. Verify the signature.
-    # 2. Call the LLM to generate code.
-    # 3. Use the GitHub API to create a repo and push the code.
-    # 4. POST the results back to the evaluation_url.
-    # -----------------------------------
+    # --- TODO: Add LLM and GitHub logic here ---
 
-    # Immediately send back the required response
-    return jsonify({"usercode": USER_CODE}), 200
+    return jsonify({"status": "ok", "message": "Request received and authenticated."}), 200
