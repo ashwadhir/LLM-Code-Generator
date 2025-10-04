@@ -2,3 +2,4 @@ Flask
 gunicorn
 google-generativeai
 PyGithub
+requests

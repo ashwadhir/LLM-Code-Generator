@@ -4,6 +4,8 @@ import os
 import google.generativeai as genai
 from github import Github
 from datetime import datetime, timezone
+import requests
+import time
 
 # --- Configure logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -51,6 +53,7 @@ def deploy_to_github(repo_name, html_content, brief):
         logging.info(f"Connecting to GitHub...")
         g = Github(GITHUB_TOKEN)
         user = g.get_user()
+        user_name = user.name if user.name else user.login
 
         logging.info(f"Creating new repository named: {repo_name}")
         repo = user.create_repo(repo_name, private=False, auto_init=False)
@@ -74,10 +77,10 @@ This project is licensed under the MIT License.
         repo.create_file("README.md", "docs: Add README", readme_content.strip(), branch="main")
 
         # --- 3. Create LICENSE file ---
-        mit_license_text = """
+        mit_license_text = f"""
 MIT License
 
-Copyright (c) 2025 [Your Name or Username]
+Copyright (c) 2025 {user_name}
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -111,6 +114,28 @@ SOFTWARE.
     except Exception as e:
         logging.error(f"Error during GitHub deployment: {e}")
         return None, None, None
+    
+def notify_evaluation_server(url, payload):
+    """Sends the final results to the evaluation server with retries."""
+    retries = 5
+    delay = 1  # Start with a 1-second delay
+    for i in range(retries):
+        try:
+            logging.info(f"Attempting to send notification to {url}...")
+            response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'}, timeout=10)
+            if response.status_code == 200:
+                logging.info("Successfully notified evaluation server.")
+                return True
+            else:
+                logging.warning(f"Notification failed with status {response.status_code}. Retrying in {delay}s...")
+        except requests.exceptions.RequestException as e:
+            logging.error(f"An error occurred while sending notification: {e}. Retrying in {delay}s...")
+        
+        time.sleep(delay)
+        delay *= 2 # Exponential backoff (1s, 2s, 4s, ...)
+    
+    logging.error("Failed to notify evaluation server after all retries.")
+    return False
     
 @app.route('/', methods=['POST'])
 def handle_request():
@@ -156,10 +181,27 @@ def handle_request():
 
     # --- TODO: Final step is to POST these details to the evaluation_url ---
     logging.info(f"Final details: repo_url={repo_url}, pages_url={pages_url}, commit_sha={commit_sha}")
+
+    # --- 3. Notify the Evaluation Server ---
+    evaluation_url = request_data.get('evaluation_url')
+    if not evaluation_url:
+        logging.error("No evaluation_url found in the request.")
+        abort(400, "Bad Request: evaluation_url is missing.")
+
+    # Construct the final payload as specified
+    final_payload = {
+        "email": request_data.get('email'),
+        "task": request_data.get('task'),
+        "round": request_data.get('round'),
+        "nonce": request_data.get('nonce'),
+        "repo_url": repo_url,
+        "commit_sha": commit_sha,
+        "pages_url": pages_url
+    }
     
+    notify_evaluation_server(evaluation_url, final_payload)
+
     return jsonify({
         "status": "ok", 
-        "message": "Code generated and deployed to GitHub successfully.",
-        "repo_url": repo_url,
-        "pages_url": pages_url
+        "message": "Process complete. Evaluation server notified."
     }), 200
