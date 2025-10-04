@@ -33,7 +33,7 @@ def generate_code_with_llm(brief, attachments):
 
     try:
         logging.info("Sending request to Google Gemini API...")
-        model = genai.GenerativeModel('gemini-1.0-pro')
+        model = genai.GenerativeModel("models/gemini-2.5-flash")
         response = model.generate_content(prompt)
         generated_code = response.text
         logging.info("Successfully received code from Google Gemini API.")
