@@ -3,6 +3,7 @@ import logging
 import os
 import google.generativeai as genai
 from github import Github
+from datetime import datetime, timezone
 
 # --- Configure logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -142,7 +143,11 @@ def handle_request():
     # --- 2. Deploy to GitHub ---
     # Use the 'task' field from the request for a unique repo name
     task_id = request_data.get('task', 'llm-generated-app')
-    repo_name = f"{task_id}-{request_data.get('round', 1)}"
+    round_num = request_data.get('round', 1)
+    # Generate a unique string from the current time
+    timestamp = datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S') 
+    # Create a more unique repository name
+    repo_name = f"{task_id}-{round_num}-{timestamp}"
 
     repo_url, pages_url, commit_sha = deploy_to_github(repo_name, generated_html, brief)
 
