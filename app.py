@@ -42,7 +42,7 @@ def generate_code_with_llm(brief, attachments):
 @app.route('/', methods=['POST'])
 def handle_request():
     """Handles the incoming project request."""
-    request_data = request.get.json()
+    request_data = request.get_json()
     # ... (secret verification code remains the same) ...
     if not MY_SECRET or request_data.get('secret') != MY_SECRET:
         logging.error("Secret verification failed.")
