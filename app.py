@@ -30,8 +30,3 @@ def handle_request():
 
     # Immediately send back the required response
     return jsonify({"usercode": USER_CODE}), 200
-
-if __name__ == '__main__':
-    # Run the app. The host '0.0.0.0' makes it accessible on your network.
-    # The port is set to 7860, a common port for Hugging Face apps.
-    app.run(host='0.0.0.0', port=7860)
