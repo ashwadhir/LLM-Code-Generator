@@ -15,4 +15,4 @@ COPY . .
 EXPOSE 7860
 
 # Command to run the application using gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:7860", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:7860", "--timeout", "120", "app:app"]
