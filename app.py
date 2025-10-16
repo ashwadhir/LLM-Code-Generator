@@ -162,6 +162,7 @@ def modify_code_with_llm(brief, checks, old_html, old_readme):
 def update_github_repo(repo_name, brief, checks):
     """Finds a repo, gets an LLM to modify its content, and pushes the updates."""
     try:
+        logging.info(f"Connecting to GitHub to update repo: {repo_name}")
         g = Github(GITHUB_TOKEN)
         user = g.get_user()
         repo = user.get_repo(repo_name)
@@ -177,14 +178,39 @@ def update_github_repo(repo_name, brief, checks):
 
         new_html = updated_files.get("index_html")
         new_readme = updated_files.get("readme_md")
+
         if not new_html or not new_readme:
              raise Exception("LLM response was missing required JSON keys.")
 
-        repo.update_file("index.html", "feat: Update application based on round 2 brief", new_html, html_file.sha, branch="main")
-        update_result = repo.update_file("README.md", "docs: Update README for round 2 changes", new_readme, readme_file.sha, branch="main")
+        # --- CRITICAL FIX: Update files sequentially ---
+        logging.info("Pushing updated index.html...")
+        repo.update_file(
+            path="index.html",
+            message="feat: Update application based on round 2 brief",
+            content=new_html,
+            sha=html_file.sha,
+            branch="main"
+        )
+        
+        # Give GitHub a moment to process the first update
+        time.sleep(2) 
+        
+        logging.info("Pushing updated README.md...")
+        # Get the LATEST version of the readme file before updating
+        latest_readme_file = repo.get_contents("README.md")
+        update_result = repo.update_file(
+            path="README.md",
+            message="docs: Update README for round 2 changes",
+            content=new_readme,
+            sha=latest_readme_file.sha, # Use the latest SHA
+            branch="main"
+        )
         
         new_commit_sha = update_result['commit'].sha
+        logging.info(f"Successfully updated repo. New commit SHA: {new_commit_sha}")
+
         return repo.html_url, f"https://{user.login}.github.io/{repo_name}/", new_commit_sha
+
     except Exception as e:
         logging.error(f"Error during GitHub repository update: {e}")
         return None, None, None
