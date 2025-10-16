@@ -18,42 +18,49 @@ GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
 app = Flask(__name__)
 
 def generate_code_with_llm(brief, attachments, checks):
-    """Generates a single HTML file using an LLM, aware of the evaluation checks."""
+    """Generates a single HTML file using a robust, universal prompt."""
     checks_string = "\n".join([f"- `{check}`" for check in checks])
     attachments_string = "No attachments provided."
     if attachments:
         attachments_string = "\n".join([f"- Name: {att['name']}, URL: {att['url']}" for att in attachments])
 
+    # This is the "Golden Prompt" with universal rules
     prompt = f"""
-    You are an expert full-stack web developer. Your task is to generate a complete, single-file web application (`index.html`).
-    The entire application must be self-contained in this one HTML file.
+    You are an expert, meticulous, and safety-conscious full-stack web developer.
+    Your task is to generate a complete, single-file web application (`index.html`).
 
     **BRIEF:**
     {brief}
 
     **ATTACHMENTS:**
-    Your generated JavaScript code must be able to handle these attachments.
     {attachments_string}
 
-    **ACCEPTANCE CRITERIA:**
-    The generated code MUST pass the following JavaScript checks.
+    **ACCEPTANCE CRITERIA (The generated code MUST pass these checks):**
     {checks_string}
 
     ---
-    **CRITICAL INSTRUCTION:** All of your custom JavaScript logic that depends on external libraries (like marked.js) or manipulates the DOM MUST be placed inside a `DOMContentLoaded` event listener. This ensures that your code only runs after the page and all external scripts are fully loaded.
-    For example:
-    <script>
-      document.addEventListener('DOMContentLoaded', function() {{
-        // All your code goes here
-      }});
-    </script>
-    ---
+    **CRITICAL UNIVERSAL RULES FOR ALL JAVASCRIPT CODE:**
 
-    Generate only the HTML code, starting with <!DOCTYPE html>.
+    1.  **Execution Timing:** ALL your custom JavaScript logic MUST be wrapped in a `DOMContentLoaded` event listener. Any code that processes an image MUST be placed inside an `image.onload` callback to prevent race conditions.
+        *Example:*
+        `document.addEventListener('DOMContentLoaded', () => {{ /* your code here */ }});`
+        `myImage.onload = () => {{ /* process the image here */ }};`
+
+    2.  **API Error Handling:** ALL `fetch()` calls or other network requests MUST be wrapped in a `try...catch` block. If an error occurs, you MUST display a user-friendly error message on the page.
+
+    3.  **DOM Safety:** Before you interact with any DOM element, you MUST verify that it exists.
+        *Example:* `const myElement = document.querySelector('#my-id'); if (myElement) {{ myElement.textContent = '...'; }}`
+
+    4.  **User Feedback:** For any action that takes time (like an API call), provide a loading state to the user (e.g., "Loading...", "Solving...", etc.).
+
+    5.  **Accessibility:** Use appropriate ARIA attributes where necessary (e.g., `aria-live="polite"` for status messages).
+
+    6.  **Final Output:** Generate ONLY the complete HTML code, starting with `<!DOCTYPE html>`. Do not add any explanations.
+    ---
     """
     try:
-        logging.info("Sending Round 1 request to Google Gemini API...")
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        logging.info("Sending robust Round 1 request to Google Gemini API...")
+        model = genai.GenerativeModel("models/gemini-2.5-flash")
         response = model.generate_content(prompt)
         return response.text.strip().replace("```html", "").replace("```", "")
     except Exception as e:
@@ -121,56 +128,48 @@ def deploy_to_github(repo_name, html_content, brief):
         return None, None, None
     
 def modify_code_with_llm(brief, checks, old_html, old_readme):
-    """Asks the LLM to modify existing code based on a new brief, using a robust separator."""
-    
+    """Modifies existing code using the same robust, universal rules."""
     checks_string = "\n".join([f"- `{check}`" for check in checks])
-
-    # --- NEW, MORE ROBUST PROMPT ---
     prompt = f"""
-    You are an expert web developer modifying an existing project.
-    Your task is to modify the current `index.html` and `README.md` files based on the new brief.
+    You are an expert web developer modifying an existing project. Your task is to modify the current files based on the new brief, while STRICTLY adhering to all universal coding rules.
 
     **NEW BRIEF:** "{brief}"
 
     **NEW ACCEPTANCE CRITERIA:**
-    The updated code MUST pass the following JavaScript checks:
     {checks_string}
+
     ---
-    **Current `index.html`:**
+    **CRITICAL UNIVERSAL RULES (You MUST maintain these in your modifications):**
+    1.  **Execution Timing:** Ensure all new logic is inside `DOMContentLoaded` or `onload` listeners.
+    2.  **API Error Handling:** All new `fetch()` calls must have `try...catch` blocks.
+    3.  **DOM Safety:** All new DOM interactions must check for the element's existence first.
+    4.  **User Feedback:** Add loading/status indicators for new asynchronous actions.
+    5.  **Accessibility:** Add ARIA attributes for new interactive elements or status messages.
+    ---
+
+    **Current `index.html` to modify:**
     ```html
     {old_html}
     ```
-    **Current `README.md`:**
+    **Current `README.md` to modify:**
     ```markdown
     {old_readme}
     ```
     ---
     **Instructions:**
-    First, provide the complete, updated content for the `index.html` file.
-    Then, on a new line, provide the exact separator string: <<FILE_SEPARATOR>>
-    Finally, provide the complete, updated content for the `README.md` file.
-    Do not add any other explanations.
+    Return the complete, updated content for `index.html`, then the separator `<<FILE_SEPARATOR>>`, then the complete, updated content for `README.md`.
     """
-    
     try:
-        logging.info("Sending robust modification request to Google Gemini API...")
+        logging.info("Sending robust Round 2 request to Google Gemini API...")
         model = genai.GenerativeModel("models/gemini-2.5-flash")
         response = model.generate_content(prompt)
-        
-        # --- NEW, MORE ROBUST PARSING LOGIC ---
         parts = response.text.split("<<FILE_SEPARATOR>>")
-        
         if len(parts) == 2:
-            new_html = parts[0].strip().replace("```html", "").replace("```", "")
-            new_readme = parts[1].strip().replace("```markdown", "").replace("```", "")
-            logging.info("Successfully parsed modified code using separator.")
-            return new_html, new_readme
+            return parts[0].strip().replace("```html", "").replace("```", ""), parts[1].strip().replace("```markdown", "").replace("```", "")
         else:
-            logging.error("LLM response did not contain the correct file separator.")
             return None, None
-
     except Exception as e:
-        logging.error(f"Error calling or parsing LLM response for modification: {e}")
+        logging.error(f"Error calling or parsing LLM response for Round 2: {e}")
         return None, None
     
 def update_github_repo(repo_name, brief, checks):
