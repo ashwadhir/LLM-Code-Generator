@@ -283,7 +283,7 @@ def handle_request():
     logging.info("Secret verified successfully.")
 
     round_num = request_data.get('round', 1)
-    if round_num == 2:
+    if round_num > 1:
         repo_url, pages_url, commit_sha = handle_round_2(request_data)
     else:
         repo_url, pages_url, commit_sha = handle_round_1(request_data)
