@@ -23,28 +23,38 @@ def generate_code_with_llm(brief, attachments, checks):
     attachments_string = "No attachments provided."
     if attachments:
         attachments_string = "\n".join([f"- Name: {att['name']}, URL: {att['url']}" for att in attachments])
+
     prompt = f"""
-    You are an expert full-stack web developer. Your task is to generate a complete, single-file web application (`index.html`) based on a detailed brief.
-    The entire application must be self-contained in this one HTML file, with all CSS in `<style>` tags and all JavaScript in `<script>` tags.
+    You are an expert full-stack web developer. Your task is to generate a complete, single-file web application (`index.html`).
+    The entire application must be self-contained in this one HTML file.
 
     **BRIEF:**
     {brief}
 
     **ATTACHMENTS:**
-    Your generated JavaScript code must be able to handle these attachments, which are provided as data URIs. For example, use `fetch()` to access their content.
+    Your generated JavaScript code must be able to handle these attachments.
     {attachments_string}
 
     **ACCEPTANCE CRITERIA:**
-    The generated code will be tested in an automated browser environment (Playwright). It MUST pass the following JavaScript checks. These checks will be executed directly in the browser console.
+    The generated code MUST pass the following JavaScript checks.
     {checks_string}
 
-    Generate only the HTML code, starting with <!DOCTYPE html>. Do not add any explanations or comments outside of the code.
+    ---
+    **CRITICAL INSTRUCTION:** All of your custom JavaScript logic that depends on external libraries (like marked.js) or manipulates the DOM MUST be placed inside a `DOMContentLoaded` event listener. This ensures that your code only runs after the page and all external scripts are fully loaded.
+    For example:
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {{
+        // All your code goes here
+      }});
+    </script>
+    ---
+
+    Generate only the HTML code, starting with <!DOCTYPE html>.
     """
     try:
         logging.info("Sending Round 1 request to Google Gemini API...")
-        model = genai.GenerativeModel("models/gemini-2.5-flash")
+        model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
         response = model.generate_content(prompt)
-        # Clean up potential markdown formatting from the response
         return response.text.strip().replace("```html", "").replace("```", "")
     except Exception as e:
         logging.error(f"Error calling Google Gemini API for Round 1: {e}")
