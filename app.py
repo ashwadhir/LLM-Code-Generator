@@ -53,7 +53,7 @@ def generate_code_with_llm(brief, attachments, checks):
     """
     try:
         logging.info("Sending Round 1 request to Google Gemini API...")
-        model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
+        model = genai.GenerativeModel("models/gemini-1.5-flash")
         response = model.generate_content(prompt)
         return response.text.strip().replace("```html", "").replace("```", "")
     except Exception as e:
