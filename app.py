@@ -51,11 +51,15 @@ def generate_code_with_llm(brief, attachments, checks):
     3.  **DOM Safety:** Before you interact with any DOM element, you MUST verify that it exists.
         *Example:* `const myElement = document.querySelector('#my-id'); if (myElement) {{ myElement.textContent = '...'; }}`
 
-    4.  **User Feedback:** For any action that takes time (like an API call), provide a loading state to the user (e.g., "Loading...", "Solving...", etc.).
+    4.  **HANDLING `data:` URIs (NEW RULE):** When an attachment URL begins with `data:`, you MUST assign it directly to the `src` attribute of an element (like an `<img>` tag). You MUST NOT use `fetch()` or any other network request to "load" a `data:` URI.
+        *Correct:* `myImage.src = "data:image/png;base64,..."`
+        *Incorrect:* `fetch("data:image/png;base64,...")`
 
-    5.  **Accessibility:** Use appropriate ARIA attributes where necessary (e.g., `aria-live="polite"` for status messages).
+    5.  **User Feedback:** For any action that takes time (like an API call), provide a loading state to the user (e.g., "Loading...", "Solving...", etc.).
 
-    6.  **Final Output:** Generate ONLY the complete HTML code, starting with `<!DOCTYPE html>`. Do not add any explanations.
+    6.  **Accessibility:** Use appropriate ARIA attributes where necessary (e.g., `aria-live="polite"` for status messages).
+
+    7.  **Final Output:** Generate ONLY the complete HTML code, starting with `<!DOCTYPE html>`. Do not add any explanations.
     ---
     """
     try:
