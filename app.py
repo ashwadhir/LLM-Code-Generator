@@ -186,15 +186,11 @@ def update_github_repo(repo_name, brief, checks):
         old_html = html_file.decoded_content.decode("utf-8")
         old_readme = readme_file.decoded_content.decode("utf-8")
 
-        updated_files = modify_code_with_llm(brief, checks, old_html, old_readme)
-        if not updated_files:
+        new_html, new_readme = modify_code_with_llm(brief, checks, old_html, old_readme)
+        
+        # Check if the LLM call was successful
+        if new_html is None or new_readme is None:
             raise Exception("LLM failed to return valid modified files.")
-
-        new_html = updated_files.get("index_html")
-        new_readme = updated_files.get("readme_md")
-
-        if not new_html or not new_readme:
-             raise Exception("LLM response was missing required JSON keys.")
 
         # --- CRITICAL FIX: Update files sequentially ---
         logging.info("Pushing updated index.html...")
