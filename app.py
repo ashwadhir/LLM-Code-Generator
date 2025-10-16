@@ -121,43 +121,57 @@ def deploy_to_github(repo_name, html_content, brief):
         return None, None, None
     
 def modify_code_with_llm(brief, checks, old_html, old_readme):
-    """Asks the LLM to modify existing code based on a new brief and new checks."""
+    """Asks the LLM to modify existing code based on a new brief, using a robust separator."""
+    
     checks_string = "\n".join([f"- `{check}`" for check in checks])
+
+    # --- NEW, MORE ROBUST PROMPT ---
     prompt = f"""
     You are an expert web developer modifying an existing project.
-    You are given the current `index.html` and `README.md` files.
-    Your task is to modify them based on the new brief and acceptance criteria provided below.
+    Your task is to modify the current `index.html` and `README.md` files based on the new brief.
 
-    **NEW BRIEF:**
-    {brief}
+    **NEW BRIEF:** "{brief}"
 
     **NEW ACCEPTANCE CRITERIA:**
     The updated code MUST pass the following JavaScript checks:
     {checks_string}
-
+    ---
     **Current `index.html`:**
     ```html
     {old_html}
     ```
-
     **Current `README.md`:**
     ```markdown
     {old_readme}
     ```
-
-    Return a single, valid JSON object with two keys: "index_html" and "readme_md".
-    The values should be the complete, updated content for both files. Do not add any explanations.
-    Example: {{"index_html": "<!DOCTYPE html>...", "readme_md": "# New Title..."}}
+    ---
+    **Instructions:**
+    First, provide the complete, updated content for the `index.html` file.
+    Then, on a new line, provide the exact separator string: <<FILE_SEPARATOR>>
+    Finally, provide the complete, updated content for the `README.md` file.
+    Do not add any other explanations.
     """
+    
     try:
-        logging.info("Sending Round 2 modification request to Google Gemini API...")
+        logging.info("Sending robust modification request to Google Gemini API...")
         model = genai.GenerativeModel("models/gemini-2.5-flash")
         response = model.generate_content(prompt)
-        cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
-        return json.loads(cleaned_response)
+        
+        # --- NEW, MORE ROBUST PARSING LOGIC ---
+        parts = response.text.split("<<FILE_SEPARATOR>>")
+        
+        if len(parts) == 2:
+            new_html = parts[0].strip().replace("```html", "").replace("```", "")
+            new_readme = parts[1].strip().replace("```markdown", "").replace("```", "")
+            logging.info("Successfully parsed modified code using separator.")
+            return new_html, new_readme
+        else:
+            logging.error("LLM response did not contain the correct file separator.")
+            return None, None
+
     except Exception as e:
-        logging.error(f"Error calling or parsing LLM response for Round 2: {e}")
-        return None
+        logging.error(f"Error calling or parsing LLM response for modification: {e}")
+        return None, None
     
 def update_github_repo(repo_name, brief, checks):
     """Finds a repo, gets an LLM to modify its content, and pushes the updates."""
