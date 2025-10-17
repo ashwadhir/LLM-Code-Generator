@@ -48,20 +48,25 @@ def process_task_in_background(data):
             logging.error(f"An error occurred in the background task: {e}")
 
 def generate_code_with_llm(brief, attachments, checks):
-    """Generates a single HTML file using the final, most robust "Golden Prompt"."""
+    """Generates a single HTML file using a robust, universal prompt with placeholders."""
     checks_string = "\n".join([f"- `{check}`" for check in checks])
     attachments_string = "No attachments provided."
     if attachments:
-        attachments_string = "\n".join([f"- Name: {att['name']}, URL: {att['url']}" for att in attachments])
+        # Show a simplified URL in the prompt for clarity
+        attachments_string = "\n".join([f"- Name: {att['name']}, URL: (placeholder will be provided)" for att in attachments])
 
-    # --- NEW: Create a pre-formatted string of image tags for the prompt ---
+    # --- NEW: Create placeholders and pre-built tags ---
     image_tags_string = "No pre-built image elements provided."
+    uri_placeholders = {} # Dictionary to store placeholders and their real URI values
     if attachments:
         image_tags = []
         for i, att in enumerate(attachments):
             if att['url'].startswith('data:image'):
-                # Create a perfect, ready-to-use HTML tag
-                image_tags.append(f'<img id="attachment-image-{i}" src="{att["url"]}" alt="{att["name"]}">')
+                placeholder = f"##DATA_URI_PLACEHOLDER_{i}##"
+                # Map the placeholder to the real, complex URI
+                uri_placeholders[placeholder] = att["url"]
+                # Create a safe <img> tag for the prompt using the placeholder
+                image_tags.append(f'<img id="attachment-image-{i}" src="{placeholder}" alt="{att["name"]}">')
         if image_tags:
             image_tags_string = "\n".join(image_tags)
 
