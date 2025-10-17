@@ -6,6 +6,7 @@ from github import Github, GithubException
 import requests
 import time
 import json
+from threading import Thread
 
 # --- Configure logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -16,6 +17,35 @@ genai.configure(api_key=os.environ.get("GEMINI_API_KEY"), transport='rest')
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
 
 app = Flask(__name__)
+
+# --- NEW: Background Worker Function ---
+def process_task_in_background(data):
+    """This function contains all the long-running logic."""
+    with app.app_context(): # Important for Flask threads
+        logging.info(f"Background task started for task: {data.get('task')}")
+        try:
+            round_num = data.get('round', 1)
+            if round_num > 1:
+                repo_url, pages_url, commit_sha = handle_round_2(data)
+            else:
+                repo_url, pages_url, commit_sha = handle_round_1(data)
+            
+            evaluation_url = data.get('evaluation_url')
+            if not evaluation_url:
+                logging.error("No evaluation_url found in background task.")
+                return
+
+            final_payload = {
+                "email": data.get('email'), "task": data.get('task'),
+                "round": round_num, "nonce": data.get('nonce'),
+                "repo_url": repo_url, "commit_sha": commit_sha, "pages_url": pages_url
+            }
+            
+            notify_evaluation_server(evaluation_url, final_payload)
+            logging.info(f"Background task finished successfully for task: {data.get('task')}")
+
+        except Exception as e:
+            logging.error(f"An error occurred in the background task: {e}")
 
 def generate_code_with_llm(brief, attachments, checks):
     """Generates a single HTML file using a robust, universal prompt."""
@@ -283,38 +313,20 @@ def handle_round_2(data):
     
     return repo_url, pages_url, commit_sha
     
+# --- Main API Endpoint (Now much faster) ---
 @app.route('/', methods=['POST'])
 def handle_request():
-    """Main endpoint to handle all project requests."""
     request_data = request.get_json()
     if not request_data:
         abort(400, "Bad Request: No JSON data received.")
-
     if not MY_SECRET or request_data.get('secret') != MY_SECRET:
-        logging.error("Secret verification failed.")
         abort(403, "Forbidden: Invalid secret")
-    logging.info("Secret verified successfully.")
-
-    round_num = request_data.get('round', 1)
-    if round_num > 1:
-        repo_url, pages_url, commit_sha = handle_round_2(request_data)
-    else:
-        repo_url, pages_url, commit_sha = handle_round_1(request_data)
-        
-    evaluation_url = request_data.get('evaluation_url')
-    if not evaluation_url:
-        abort(400, "Bad Request: evaluation_url is missing.")
-
-    final_payload = {
-        "email": request_data.get('email'),
-        "task": request_data.get('task'),
-        "round": round_num,
-        "nonce": request_data.get('nonce'),
-        "repo_url": repo_url,
-        "commit_sha": commit_sha,
-        "pages_url": pages_url
-    }
     
-    notify_evaluation_server(evaluation_url, final_payload)
+    logging.info("Secret verified. Starting background task.")
+    
+    # --- Start the background thread ---
+    thread = Thread(target=process_task_in_background, args=(request_data,))
+    thread.start()
 
-    return jsonify({"status": "ok", "message": "Process complete. Evaluation server notified."}), 200
+    # --- Immediately return the 200 OK response ---
+    return jsonify({"status": "ok", "message": "Request received and is being processed."}), 200
