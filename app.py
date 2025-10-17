@@ -48,13 +48,24 @@ def process_task_in_background(data):
             logging.error(f"An error occurred in the background task: {e}")
 
 def generate_code_with_llm(brief, attachments, checks):
-    """Generates a single HTML file using a robust, universal prompt."""
+    """Generates a single HTML file using the final, most robust "Golden Prompt"."""
     checks_string = "\n".join([f"- `{check}`" for check in checks])
     attachments_string = "No attachments provided."
     if attachments:
         attachments_string = "\n".join([f"- Name: {att['name']}, URL: {att['url']}" for att in attachments])
 
-    # This is the "Golden Prompt" with universal rules
+    # --- NEW: Create a pre-formatted string of image tags for the prompt ---
+    image_tags_string = "No pre-built image elements provided."
+    if attachments:
+        image_tags = []
+        for i, att in enumerate(attachments):
+            if att['url'].startswith('data:image'):
+                # Create a perfect, ready-to-use HTML tag
+                image_tags.append(f'<img id="attachment-image-{i}" src="{att["url"]}" alt="{att["name"]}">')
+        if image_tags:
+            image_tags_string = "\n".join(image_tags)
+
+    # This is the "Golden Prompt" with the new pre-built elements section
     prompt = f"""
     You are an expert, meticulous, and safety-conscious full-stack web developer.
     Your task is to generate a complete, single-file web application (`index.html`).
@@ -62,39 +73,38 @@ def generate_code_with_llm(brief, attachments, checks):
     **BRIEF:**
     {brief}
 
-    **ATTACHMENTS:**
+    **ATTACHMENTS (for context):**
     {attachments_string}
 
     **ACCEPTANCE CRITERIA (The generated code MUST pass these checks):**
     {checks_string}
 
     ---
+    **PRE-BUILT ATTACHMENT ELEMENTS (Use these directly in your HTML):**
+    If the brief requires using an attached image, you MUST use the following pre-built HTML `<img>` tag. Do not construct your own.
+    ```html
+    {image_tags_string}
+    ```
+    ---
+
     **CRITICAL UNIVERSAL RULES FOR ALL JAVASCRIPT CODE:**
 
-    1.  **Execution Timing:** ALL your custom JavaScript logic MUST be wrapped in a `DOMContentLoaded` event listener. Any code that processes an image MUST be placed inside an `image.onload` callback to prevent race conditions.
-        *Example:*
-        `document.addEventListener('DOMContentLoaded', () => {{ /* your code here */ }});`
-        `myImage.onload = () => {{ /* process the image here */ }};`
+    1.  **Execution Timing:** ALL your custom JavaScript logic MUST be wrapped in a `DOMContentLoaded` event listener. Any code that processes an image MUST be placed inside an `image.onload` callback.
 
-    2.  **API Error Handling:** ALL `fetch()` calls or other network requests MUST be wrapped in a `try...catch` block. If an error occurs, you MUST display a user-friendly error message on the page.
+    2.  **API Error Handling:** ALL `fetch()` calls MUST be wrapped in a `try...catch` block and display a user-friendly error message on failure.
 
     3.  **DOM Safety:** Before you interact with any DOM element, you MUST verify that it exists.
-        *Example:* `const myElement = document.querySelector('#my-id'); if (myElement) {{ myElement.textContent = '...'; }}`
 
-    4.  **HANDLING `data:` URIs (NEW RULE):** When an attachment URL begins with `data:`, you MUST assign it directly to the `src` attribute of an element (like an `<img>` tag). You MUST NOT use `fetch()` or any other network request to "load" a `data:` URI.
-        *Correct:* `myImage.src = "data:image/png;base64,..."`
-        *Incorrect:* `fetch("data:image/png;base64,...")`
+    4.  **HANDLING `data:` URIs:** You have been provided with pre-built `<img>` tags for all image attachments. Use them directly. For non-image `data:` URIs (like CSV or JSON), use `fetch()` to get their content.
 
-    5.  **User Feedback:** For any action that takes time (like an API call), provide a loading state to the user (e.g., "Loading...", "Solving...", etc.).
+    5.  **User Feedback & Accessibility:** Provide loading states for slow actions and use appropriate ARIA attributes.
 
-    6.  **Accessibility:** Use appropriate ARIA attributes where necessary (e.g., `aria-live="polite"` for status messages).
-
-    7.  **Final Output:** Generate ONLY the complete HTML code, starting with `<!DOCTYPE html>`. Do not add any explanations.
+    6.  **Final Output:** Generate ONLY the complete HTML code, starting with `<!DOCTYPE html>`.
     ---
     """
     try:
         logging.info("Sending robust Round 1 request to Google Gemini API...")
-        model = genai.GenerativeModel("models/gemini-2.5-flash")
+        model = genai.GenerativeModel("models/gemini-1.5-flash-latest") # Updated model
         response = model.generate_content(prompt)
         return response.text.strip().replace("```html", "").replace("```", "")
     except Exception as e:
